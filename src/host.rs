@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine};
-use extism_pdk::FromBytes;
+use extism_pdk::{memory::internal::{find, store}, FromBytes, Memory};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -67,20 +67,15 @@ impl Otoroshi {
     /////// utils ///////
 
     fn find_memory(offset: u64) -> Option<extism_pdk::Memory> {
-        let length = unsafe { extism_pdk::bindings::extism_length(offset) };
-        if length == 0 {
-            return None;
+        match find(offset) {
+            Some(handle) => Some(Memory(handle)),
+            None => None
         }
-        Some(extism_pdk::Memory {
-            offset,
-            length,
-            free: false,
-        })
     }
 
     fn allocate_string(s: &str) -> extism_pdk::Memory {
-        let mut mem_in = extism_pdk::Memory::new(s.len());
-        mem_in.store(s);
+        let mem_in = extism_pdk::Memory::from(s.len() as u64);
+        store(mem_in.0, s);
         mem_in
     }
 
@@ -166,7 +161,7 @@ impl Otoroshi {
 
     pub fn log(level: i32, msg: String) {
         let mem = Self::allocate_string(msg.as_str());
-        unsafe { proxy_log(level, mem.offset, mem.length) };
+        unsafe { proxy_log(level, mem.offset(), mem.len() as u64) };
     }
 
     pub fn log_event(level: i32, function: String, message: String) {
@@ -176,7 +171,7 @@ impl Otoroshi {
           "level": level,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_log_event(mem.offset, mem.length) };
+        unsafe { proxy_log_event(mem.offset(), mem.len() as u64) };
     }
 
     /// static config access api
@@ -212,7 +207,7 @@ impl Otoroshi {
 
     pub fn cluster_config_value(path: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
         let mem = Self::allocate_string(path);
-        let ptr = unsafe { proxy_cluster_state_value(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_cluster_state_value(mem.offset(), mem.len() as u64) };
         Self::get_json_object_from_ptr(ptr)
     }
 
@@ -237,7 +232,7 @@ impl Otoroshi {
           "id": id,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        let ptr = unsafe { proxy_state_value(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_state_value(mem.offset(), mem.len() as u64) };
         Self::get_json_object_from_ptr(ptr)
     }
 
@@ -267,13 +262,13 @@ impl Otoroshi {
 
     pub fn plugin_mem_get(key: &str) -> Option<Vec<u8>> {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_plugin_map_get(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_map_get(mem.offset(), mem.len() as u64) };
         Self::get_string_from_ptr(ptr).map(|s| Self::decode_base64(s))
     }
 
     pub fn plugin_mem_del(key: &str) {
         let mem = Self::allocate_string(key);
-        unsafe { proxy_plugin_map_del(mem.offset, mem.length) };
+        unsafe { proxy_plugin_map_del(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_mem_set(key: &str, value: Vec<u8>) {
@@ -282,7 +277,7 @@ impl Otoroshi {
           "value": Self::encode_base64(value),
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_plugin_map_set(mem.offset, mem.length) };
+        unsafe { proxy_plugin_map_set(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_mem_set_string(key: &str, value: String) {
@@ -290,7 +285,7 @@ impl Otoroshi {
     }
 
     pub fn plugin_mem_get_string(key: &str) -> Option<String> {
-        Self::plugin_mem_get(key).map(|bytes| String::from_bytes(bytes).unwrap())
+        Self::plugin_mem_get(key).map(|bytes| String::from_bytes(&bytes).unwrap())
     }
 
     pub fn plugin_mem_set_json(key: &str, value: serde_json::Value) {
@@ -343,13 +338,13 @@ impl Otoroshi {
 
     pub fn shared_mem_get(key: &str) -> Option<Vec<u8>> {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_global_map_get(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_global_map_get(mem.offset(), mem.len() as u64) };
         Self::get_string_from_ptr(ptr).map(|s| Self::decode_base64(s))
     }
 
     pub fn shared_mem_del(key: &str) {
         let mem = Self::allocate_string(key);
-        unsafe { proxy_global_map_del(mem.offset, mem.length) };
+        unsafe { proxy_global_map_del(mem.offset(), mem.len() as u64) };
     }
 
     pub fn shared_mem_set(key: &str, value: Vec<u8>) {
@@ -358,7 +353,7 @@ impl Otoroshi {
           "value": Self::encode_base64(value),
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_global_map_set(mem.offset, mem.length) };
+        unsafe { proxy_global_map_set(mem.offset(), mem.len() as u64) };
     }
 
     pub fn shared_mem_set_string(key: &str, value: String) {
@@ -366,7 +361,7 @@ impl Otoroshi {
     }
 
     pub fn shared_mem_get_string(key: &str) -> Option<String> {
-        Self::shared_mem_get(key).map(|bytes| String::from_bytes(bytes).unwrap())
+        Self::shared_mem_get(key).map(|bytes| String::from_bytes(&bytes).unwrap())
     }
 
     pub fn shared_mem_set_json(key: &str, value: serde_json::Value) {
@@ -411,7 +406,7 @@ impl Otoroshi {
           "ttl": ttl_str,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_datastore_set(mem.offset, mem.length) };
+        unsafe { proxy_datastore_set(mem.offset(), mem.len() as u64) };
     }
 
     pub fn datastore_setnx(key: &str, value: Vec<u8>, ttl: Option<u64>) {
@@ -425,24 +420,24 @@ impl Otoroshi {
           "ttl": ttl_str,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_datastore_setnx(mem.offset, mem.length) };
+        unsafe { proxy_datastore_setnx(mem.offset(), mem.len() as u64) };
     }
 
     pub fn datastore_get(key: &str) -> Option<Vec<u8>> {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_datastore_get(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_get(mem.offset(), mem.len() as u64) };
         Self::get_bytes_from_ptr(ptr)
     }
 
     pub fn datastore_exists(key: &str) -> bool {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_datastore_exists(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_exists(mem.offset(), mem.len() as u64) };
         Self::get_bool_from_ptr(ptr)
     }
 
     pub fn datastore_pttl(key: &str) -> u64 {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_datastore_pttl(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_pttl(mem.offset(), mem.len() as u64) };
         Self::get_u64_from_ptr(ptr)
     }
 
@@ -451,7 +446,7 @@ impl Otoroshi {
           "keys": keys,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_datastore_del(mem.offset, mem.length) };
+        unsafe { proxy_datastore_del(mem.offset(), mem.len() as u64) };
     }
 
     pub fn datastore_incrby(key: &str, incr: u64) -> u64 {
@@ -460,7 +455,7 @@ impl Otoroshi {
           "incr": incr,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        let ptr = unsafe { proxy_datastore_incrby(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_incrby(mem.offset(), mem.len() as u64) };
         Self::get_u64_from_ptr(ptr)
     }
 
@@ -470,12 +465,12 @@ impl Otoroshi {
           "pttl": ttl,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_datastore_pexpire(mem.offset, mem.length) };
+        unsafe { proxy_datastore_pexpire(mem.offset(), mem.len() as u64) };
     }
 
     pub fn datastore_keys(pattern: &str) -> Vec<String> {
         let mem = Self::allocate_string(pattern);
-        let ptr = unsafe { proxy_datastore_keys(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_keys(mem.offset(), mem.len() as u64) };
         match Self::get_json_array_from_ptr(ptr) {
             None => Vec::new(),
             Some(arr) => arr
@@ -487,7 +482,7 @@ impl Otoroshi {
 
     pub fn datastore_all_matching(pattern: &str) -> Vec<Vec<u8>> {
         let mem = Self::allocate_string(pattern);
-        let ptr = unsafe { proxy_datastore_all_matching(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_datastore_all_matching(mem.offset(), mem.len() as u64) };
         match Self::get_json_array_from_ptr(ptr) {
             None => Vec::new(),
             Some(arr) => arr
@@ -524,7 +519,7 @@ impl Otoroshi {
           "ttl": ttl_str,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_plugin_datastore_set(mem.offset, mem.length) };
+        unsafe { proxy_plugin_datastore_set(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_datastore_setnx(key: &str, value: Vec<u8>, ttl: Option<u64>) {
@@ -538,24 +533,24 @@ impl Otoroshi {
           "ttl": ttl_str,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_plugin_datastore_setnx(mem.offset, mem.length) };
+        unsafe { proxy_plugin_datastore_setnx(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_datastore_get(key: &str) -> Option<Vec<u8>> {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_plugin_datastore_get(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_get(mem.offset(), mem.len() as u64) };
         Self::get_bytes_from_ptr(ptr)
     }
 
     pub fn plugin_datastore_exists(key: &str) -> bool {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_plugin_datastore_exists(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_exists(mem.offset(), mem.len() as u64) };
         Self::get_bool_from_ptr(ptr)
     }
 
     pub fn plugin_datastore_pttl(key: &str) -> u64 {
         let mem = Self::allocate_string(key);
-        let ptr = unsafe { proxy_plugin_datastore_pttl(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_pttl(mem.offset(), mem.len() as u64) };
         Self::get_u64_from_ptr(ptr)
     }
 
@@ -564,7 +559,7 @@ impl Otoroshi {
           "keys": keys,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_plugin_datastore_del(mem.offset, mem.length) };
+        unsafe { proxy_plugin_datastore_del(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_datastore_incrby(key: &str, incr: u64) -> u64 {
@@ -573,7 +568,7 @@ impl Otoroshi {
           "incr": incr,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        let ptr = unsafe { proxy_plugin_datastore_incrby(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_incrby(mem.offset(), mem.len() as u64) };
         Self::get_u64_from_ptr(ptr)
     }
 
@@ -583,12 +578,12 @@ impl Otoroshi {
           "pttl": ttl,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_plugin_datastore_pexpire(mem.offset, mem.length) };
+        unsafe { proxy_plugin_datastore_pexpire(mem.offset(), mem.len() as u64) };
     }
 
     pub fn plugin_datastore_keys(pattern: &str) -> Vec<String> {
         let mem = Self::allocate_string(pattern);
-        let ptr = unsafe { proxy_plugin_datastore_keys(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_keys(mem.offset(), mem.len() as u64) };
         match Self::get_json_array_from_ptr(ptr) {
             None => Vec::new(),
             Some(arr) => arr
@@ -600,7 +595,7 @@ impl Otoroshi {
 
     pub fn plugin_datastore_all_matching(pattern: &str) -> Vec<Vec<u8>> {
         let mem = Self::allocate_string(pattern);
-        let ptr = unsafe { proxy_plugin_datastore_all_matching(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_plugin_datastore_all_matching(mem.offset(), mem.len() as u64) };
         match Self::get_json_array_from_ptr(ptr) {
             None => Vec::new(),
             Some(arr) => arr
@@ -633,7 +628,7 @@ impl Otoroshi {
 
     pub fn attrs_get(key: String) -> Option<serde_json::Value> {
         let mem = Self::allocate_string(&key);
-        let ptr = unsafe { proxy_get_attr(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_get_attr(mem.offset(), mem.len() as u64) };
         Self::get_json_from_ptr(ptr)
     }
 
@@ -643,12 +638,12 @@ impl Otoroshi {
           "value": value,
         });
         let mem = Self::allocate_string(serde_json::to_string(&obj).unwrap().as_str());
-        unsafe { proxy_set_attr(mem.offset, mem.length) };
+        unsafe { proxy_set_attr(mem.offset(), mem.len() as u64) };
     }
 
     pub fn attrs_del(key: String) {
         let mem = Self::allocate_string(&key);
-        unsafe { proxy_del_attr(mem.offset, mem.length) };
+        unsafe { proxy_del_attr(mem.offset(), mem.len() as u64) };
     }
 
     pub fn attrs_clear() {
@@ -659,7 +654,7 @@ impl Otoroshi {
 
     pub fn http_call(req: OtoroshiHttpRequest) -> Option<OtoroshiHttpResponse> {
         let mem = Self::allocate_string(req.to_json().as_str());
-        let ptr = unsafe { proxy_http_call(mem.offset, mem.length) };
+        let ptr = unsafe { proxy_http_call(mem.offset(), mem.len() as u64) };
         match Self::get_json_from_ptr(ptr) {
             None => None,
             Some(value) => Some(OtoroshiHttpResponse::from_json(value)),
