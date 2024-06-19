@@ -381,7 +381,7 @@ pub struct WasmPreRouteContext {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WasmPreRouteResponse {
     pub status: u32,
-    pub error?: bool,
+    pub error: Option<bool>,
     pub headers: HashMap<String, String>,
     pub body_bytes: Option<Vec<u8>>,
     pub body_base64: Option<String>,
