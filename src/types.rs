@@ -414,3 +414,8 @@ pub struct WasmPreRouteError {
     pub body_base64: Option<String>,
     pub body_json: Option<Value>,
     pub body_str: Option<String>,
+}
+
+
+
+
