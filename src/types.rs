@@ -406,4 +406,13 @@ pub struct WasmRequestHandlerResponse {
 }
 
 
-
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WasmResponse {
+    pub status: Option<u32>,
+    pub headers: HashMap<String, String>,
+    pub cookies: Value,
+    pub body_bytes: Option<Vec<u8>>,
+    pub body_base64: Option<String>,
+    pub body_json: Option<Value>,
+    pub body_str: Option<String>,
+}
