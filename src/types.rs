@@ -402,3 +402,15 @@ pub struct WasmRequestHandlerResponse {
     pub body_json: Option<Value>,
     pub body_str: Option<String>,
 }
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WasmPreRouteError {
+    pub status: u32,
+    pub error: bool,
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+    pub body_bytes: Option<Vec<u8>>,
+    pub body_base64: Option<String>,
+    pub body_json: Option<Value>,
+    pub body_str: Option<String>,
