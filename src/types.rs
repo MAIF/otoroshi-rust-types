@@ -408,6 +408,7 @@ pub struct WasmRequestHandlerResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WasmResponse {
+    pub error: Option<bool>,
     pub status: Option<u32>,
     pub headers: HashMap<String, String>,
     pub cookies: Value,
