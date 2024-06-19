@@ -254,7 +254,6 @@ pub struct WasmRequestTransformerContext {
     pub snowflake: String,
     pub raw_request: OtoroshiRequest,
     pub otoroshi_request: OtoroshiRequest,
-    pub backend: Backend,
     pub apikey: Option<Apikey>,
     pub user: Option<User>,
     pub request: RawRequest,
