@@ -321,6 +321,8 @@ pub struct WasmAccessValidatorResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WasmTransformerResponse {
+    pub url: Option<String>,
+    pub method: Option<String>,
     pub headers: HashMap<String, String>,
     pub cookies: Value,
     pub body_bytes: Option<Vec<u8>>,
