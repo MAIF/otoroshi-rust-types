@@ -284,7 +284,6 @@ pub struct WasmSinkContext {
     pub snowflake: Option<String>,
     pub request: RawRequest,
     pub config: Value,
-    pub global_config: Value,
     pub attrs: Value,
     pub origin: String,
     pub status: u32,
